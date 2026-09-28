@@ -158,9 +158,9 @@ auth cookie is sent automatically.
 
 For hosting it so students can reach it, the quickest free route is Render.
 
+The source lives at <https://github.com/MohdJasimAli/classhub>.
+
 ```bash
-git branch -M main
-git remote add origin https://github.com/<you>/classhub.git
 git push -u origin main
 ```
 
