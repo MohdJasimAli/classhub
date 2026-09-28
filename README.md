@@ -77,9 +77,37 @@ An npm workspace, so one install at the root covers `server/` and `client/`.
 
 ### 2. Create the database
 
+If you already have PostgreSQL installed, just create the database:
+
 ```sql
-CREATE DATABASE classhub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE classhub;
+CREATE DATABASE classhub_test;   -- used by the test suite
 ```
+
+#### This machine's setup
+
+There is no PostgreSQL service on this PC, so a portable PostgreSQL 17 lives in
+`C:\Users\Lenovo\.classhub-postgres`. It is **not** a Windows service, so it
+does not survive a reboot. Start it before `npm run dev`:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\start-local-postgres.ps1
+```
+
+The script is safe to run when the server is already up. It listens on port
+**5433**, which is why `server/.env` reads:
+
+```env
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5433/classhub"
+```
+
+If you would rather not rely on the portable install, two alternatives:
+
+- Install PostgreSQL properly (administrator) and change the port to 5432
+- Install Docker Desktop, then run `docker compose up db` and point
+  `DATABASE_URL` at `localhost:5432`
+
+Do not run the portable copy out of `%TEMP%`. Windows is free to delete it.
 
 ### 3. Configure
 
