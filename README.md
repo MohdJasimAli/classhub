@@ -21,6 +21,7 @@ they are emailed (and notified in-app) **24 hours before the last date**.
 
 - [Technology stack](#technology-stack)
 - [Quick start](#quick-start)
+- [Deploying to Render (free)](#deploying-to-render-free)
 - [Deploying with Docker](#deploying-with-docker)
 - [Demo credentials](#demo-credentials)
 - [How it works](#how-it-works)
@@ -122,6 +123,36 @@ npm run dev
 
 Vite proxies `/api` to the backend, so the SPA and API share an origin and the
 auth cookie is sent automatically.
+
+---
+
+## Deploying to Render (free)
+
+For hosting it so students can reach it, the quickest free route is Render.
+
+```bash
+git branch -M main
+git remote add origin https://github.com/<you>/classhub.git
+git push -u origin main
+```
+
+Then create a **Blueprint** on <https://render.com> pointing at the repo.
+Render reads `render.yaml` and creates one web service plus one PostgreSQL
+database. Set `CLIENT_URL` to your service URL, then create the first admin
+from the service shell:
+
+```bash
+node dist/scripts/createAdmin.js --email "you@college.edu" --name "Your Name" --password "a-password-of-at-least-12-characters"
+```
+
+One service serves both the web app and the API. That is not a shortcut — the
+auth cookie is `sameSite: 'lax'`, so two Render domains would be cross-site
+and the browser would refuse to send the cookie, signing every student out
+immediately.
+
+**[RENDER.md](RENDER.md) is the full walkthrough**, including the two
+free-tier limitations you need to know about: the service sleeps when idle
+(so first loads are slow), and uploaded files are wiped on every deploy.
 
 ---
 
