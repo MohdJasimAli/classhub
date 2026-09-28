@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# Line endings
+#
+# Shell scripts MUST stay LF. GitHub Actions, Render and any Linux container run
+# them with /bin/sh, and a CRLF shebang ("#!/bin/sh\r") makes the interpreter
+# fail to start, so the container dies immediately with an error that points
+# nowhere near the real cause.
+#
+# core.autocrlf on a Windows checkout would otherwise be free to rewrite a .sh
+# file, so it is pinned here rather than left to a local git setting.
+# ---------------------------------------------------------------------------
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+Dockerfile text eol=lf
+
+# Windows-native files keep CRLF.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary: never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.ico binary
+*.woff binary
+*.woff2 binary
