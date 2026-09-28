@@ -18,7 +18,14 @@
 # ---------------------------------------------------------------------------
 
 # ---- Stage 1: install build-time dependencies ------------------------------
-FROM node:20-alpine AS deps
+# Node 22 is pinned deliberately, and is the version the toolchain actually
+# wants:
+#   * vite 8 and rolldown 1.2 require `^20.19.0 || >=22.12.0`
+#   * vitest 5 requires `>=22.12.0` outright
+# The previous `node:20-alpine` sat right on the 20.19 floor, and because the
+# tag is floating, a later build could silently drop below it. 22 LTS is the
+# lowest version everything in this repository is satisfied by.
+FROM node:22-alpine AS deps
 WORKDIR /app
 
 # The lockfile plus BOTH workspace manifests. npm refuses to run `ci` unless
@@ -30,7 +37,7 @@ COPY client/package.json ./client/
 RUN npm ci
 
 # ---- Stage 2: build the web app -------------------------------------------
-FROM node:20-alpine AS client-build
+FROM node:22-alpine AS client-build
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -53,7 +60,7 @@ WORKDIR /app/client
 RUN npm run build
 
 # ---- Stage 3: compile the API ----------------------------------------------
-FROM node:20-alpine AS server-build
+FROM node:22-alpine AS server-build
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -71,7 +78,7 @@ RUN npm run build
 RUN npx prisma generate --schema=/app/prisma/schema.prisma
 
 # ---- Stage 4: production dependencies --------------------------------------
-FROM node:20-alpine AS prod-deps
+FROM node:22-alpine AS prod-deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -90,7 +97,7 @@ RUN npm install --no-save --omit=dev "prisma@${PRISMA_VERSION}" \
     && npm cache clean --force
 
 # ---- Stage 5: runtime ------------------------------------------------------
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 # PORT is supplied by the platform at runtime (Render sets it). Defaulting
