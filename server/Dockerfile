@@ -126,7 +126,21 @@ ENV NODE_ENV=production \
 # curl backs the healthcheck.
 RUN apk add --no-cache curl
 
+# The production node_modules above still contains only a STUB Prisma Client.
+# The postinstall of @prisma/client runs during `npm ci` in this stage, but
+# prisma/ is deliberately not copied here, so there is no schema to generate
+# from and it emits an empty placeholder. Copying that node_modules in as-is
+# makes the app die on startup with:
+#
+#   Error: @prisma/client did not initialize yet. Please run "prisma generate"
+#
+# The real client is produced in server-build, which has prisma/schema.prisma
+# and runs `prisma generate` before compiling. Both paths are copied:
+#   .prisma/client      - the generated models, types and query engine
+#   @prisma/client      - the package that re-exports the above
 COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=server-build /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=server-build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=server-build /app/server/dist ./server/dist
 COPY --from=client-build /app/client/dist ./client/dist
 COPY package.json ./package.json
