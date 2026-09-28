@@ -120,7 +120,9 @@ Render prompts for the values that cannot be automated. Open the service →
 
 | Key | Value |
 |---|---|
-| `CLIENT_URL` | `https://classhub.onrender.com` — **your** service's URL. You find this at the top of the service page. |
+| `CLIENT_URL` | `https://classhub-i8qq.onrender.com` — **your** service's URL. You find this at the top of the service page. |
+| `ADMIN_BOOTSTRAP_EMAIL` | Your own email address |
+| `ADMIN_BOOTSTRAP_PASSWORD` | A password of at least 12 characters, of your choosing |
 | `EMAIL_HOST` | Leave **empty** for now (see step 6) |
 
 `JWT_SECRET` was generated for you by the blueprint — you never need to see
@@ -128,31 +130,64 @@ it. `DATABASE_URL` is wired up automatically.
 
 Click **Save**, then **Restart deploy**.
 
-`CLIENT_URL` matters more than it looks: every reminder email contains a link
-back to the app, and the server refuses cross-origin requests from any other
-address. If it is wrong, students see a blank page and reminder links go
-nowhere.
+`CLIENT_URL` matters for the links inside reminder emails. A wrong value no
+longer locks anyone out of the app — same-origin requests are always accepted —
+but it will send reminder links to the wrong address.
+
+### If migrations fail with P1001
+
+`Can't reach database server` means the web service and the database are in
+different regions. Render's internal database hostnames resolve only from
+services in the same region, so the name simply does not exist.
+
+Either move the service to the database's region (**Settings → Region**), or
+paste the database's **External Connection String** over `DATABASE_URL` in the
+web service's Environment page. The external address works from anywhere and is
+the quicker fix.
 
 ---
 
 ## 4. Create your admin account
 
-A fresh install has **no users at all** — not even an admin. Create one:
+A fresh install has **no users at all** — not even an admin.
 
-1. Open the **Shell** tab of your service in the Render dashboard.
-2. Run:
+You probably already have one: the app creates the first administrator
+automatically on boot, if `ADMIN_BOOTSTRAP_EMAIL` and `ADMIN_BOOTSTRAP_PASSWORD`
+are set in the service's **Environment** page (step 3). The deploy log will say:
 
-   ```sh
-   node dist/scripts/createAdmin.js --email "you@college.edu" --name "Your Name" --password "a-password-of-at-least-12-characters"
-   ```
+```
+[bootstrap] created the first admin account: you@college.edu
+```
 
-You should see `created admin account`. Then sign in at
-<https://classhub.onrender.com>.
+Sign in at your service URL with those credentials.
 
-The script refuses passwords under 12 characters and the known demo
-passwords. Running it again with the same email resets that account's
-password and re-promotes it to admin — that is the supported way to recover
-a lost login.
+This exists because **Render's Shell tab is a paid feature.** The usual way to
+provision an admin is to run a script inside the running container, which is
+impossible on the free tier. The bootstrap needs nothing but two environment
+variables, which the free dashboard does allow.
+
+Three safety properties worth knowing:
+
+- It runs **only when there are zero admin accounts.** Once one exists both
+  variables are ignored, so a later redeploy cannot reset or resurrect it.
+- **No visitor can trigger it.** Public registration only ever creates STUDENT
+  accounts.
+- The password rules match the interactive script: at least 12 characters, and
+  the known demo passwords are refused.
+
+### Then delete the bootstrap variables
+
+Once you can sign in, remove `ADMIN_BOOTSTRAP_EMAIL` and
+`ADMIN_BOOTSTRAP_PASSWORD` from **Environment** and redeploy. They are inert
+afterwards, but there is no reason to leave a password sitting in the dashboard.
+
+### Lost the admin password?
+
+Re-set the two variables to new values and redeploy. If the bootstrap refuses
+because an admin already exists, delete that account from the database first
+(Render → the database → **Shell** on a paid plan, or via
+`prisma.user.deleteMany` from your own machine using the external connection
+string).
 
 Create your students from **Admin → Students → Add student**.
 

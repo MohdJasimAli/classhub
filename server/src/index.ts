@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/prisma.js';
 import { startJobs, stopJobs } from './jobs/reminder.job.js';
+import { runBootstrapAdmin } from './services/bootstrapAdmin.service.js';
 
 /**
  * Server entry point. Kept deliberately thin: everything testable lives in
@@ -9,6 +10,10 @@ import { startJobs, stopJobs } from './jobs/reminder.job.js';
  */
 async function main(): Promise<void> {
   await connectDatabase();
+
+  // Runs before the reminder sweep so a first-ever deploy has an admin before
+  // any notification could be generated.
+  await runBootstrapAdmin();
 
   const app = createApp();
 

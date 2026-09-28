@@ -47,6 +47,13 @@ const schema = z.object({
   UPLOAD_DIR: z.string().default('uploads'),
   MAX_FILE_SIZE_MB: z.coerce.number().positive().default(10),
 
+  // First-run admin bootstrap. Empty by default, and ignored entirely once an
+  // administrator exists. See services/bootstrapAdmin.service.ts for why this
+  // exists at all (Render's free tier has no in-container shell).
+  ADMIN_BOOTSTRAP_EMAIL: z.string().default(''),
+  ADMIN_BOOTSTRAP_PASSWORD: z.string().default(''),
+  ADMIN_BOOTSTRAP_NAME: z.string().default('Administrator'),
+
   RATE_LIMIT_WINDOW_MINUTES: intWithDefault(15),
   AUTH_RATE_LIMIT_MAX: intWithDefault(20),
 
