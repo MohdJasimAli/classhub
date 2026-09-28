@@ -1,0 +1,55 @@
+# ---------------------------------------------------------------------------
+# .dockerignore
+#
+# The build context for BOTH images is this repository root (npm workspaces
+# monorepo - a single package-lock.json lives here), so patterns must cover
+# nested paths. Docker matches these against the full relative path, which
+# means a bare `.env` only ever matches the top-level file; `**/.env` is what
+# actually excludes client/.env and server/.env.
+#
+# Two jobs: keep the build context small, and never bake local secrets into an
+# image layer, where they survive forever even if a later layer "removes" them.
+#
+# CAUTION: do not ignore server/docker-entrypoint.sh. server/Dockerfile COPYs it
+# and excluding it fails the build.
+# ---------------------------------------------------------------------------
+
+# ---- Dependencies (reinstalled inside the image) --------------------------
+**/node_modules
+**/npm-debug.log*
+
+# ---- Build output (rebuilt inside the image) ------------------------------
+**/dist
+**/build
+**/tsconfig.tsbuildinfo
+
+# ---- Secrets: never enter the image ---------------------------------------
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.docker.example
+
+# ---- Runtime data: recreated as a mounted volume ---------------------------
+**/uploads
+**/coverage
+**/.vitest
+
+# ---- Tests and tooling ------------------------------------------------------
+**/tests
+**/*.test.ts
+**/vitest.config.ts
+**/eslint.config.js
+
+# ---- Local scripts and logs -------------------------------------------------
+scripts/
+**/*.log
+**/*.err
+
+# ---- VCS and editor --------------------------------------------------------
+**/.git
+**/.github
+**/.vscode
+**/.idea
+**/.DS_Store
+**/Thumbs.db
+**/*.swp

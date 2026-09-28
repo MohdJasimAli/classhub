@@ -1,0 +1,48 @@
+# ---------------------------------------------------------------------------
+# Anything that must never reach GitHub. This matters more than usual here:
+# Render pulls the repository to build and run the app, so a committed .env
+# would publish the database password and JWT signing secret to the world.
+#
+# `.env.example` and `.env.docker.example` ARE tracked, because they are
+# templates with no real values.
+# ---------------------------------------------------------------------------
+
+# ---- Secrets --------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.docker.example
+
+# ---- Dependencies ----------------------------------------------------------
+node_modules/
+
+# ---- Build output ----------------------------------------------------------
+dist/
+build/
+*.tsbuildinfo
+
+# ---- Runtime data ----------------------------------------------------------
+# Uploaded question/answer files and the local database are runtime state,
+# never source. Losing them here is expected; they live on the server.
+server/uploads/*
+!server/uploads/.gitkeep
+uploads/
+# Files written by the Vitest suite. `uploads/` above does not cover this
+# because the test suite points UPLOAD_DIR at a separate directory.
+server/uploads-test/
+uploads-test/
+
+# ---- Logs and test artefacts ----------------------------------------------
+*.log
+*.err
+debug.log
+vite.log
+coverage/
+.vitest/
+
+# ---- Editor / OS -----------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp

@@ -1,0 +1,92 @@
+# ---------------------------------------------------------------------------
+# ClassHub - local / single-server Docker Compose
+#
+#   copy .env.docker.example .env      (Windows)
+#   cp .env.docker.example .env        (Linux / macOS)
+#   $EDITOR .env                       <- set real values
+#   docker compose up -d --build
+#   open http://localhost
+#
+# Two services, not three:
+#   db      PostgreSQL 16, data in a named volume
+#   server  the Express API, which ALSO serves the built React app
+#
+# There is no separate nginx container. The API serves the web app from its own
+# origin because the auth cookie is `sameSite: 'lax'`: two different domains
+# would be cross-site, the browser would refuse to send the cookie, and every
+# user would be bounced back to the login page. One origin also keeps the app
+# to a single service, which matters on metered free hosting tiers.
+#
+# The image builds from the REPOSITORY ROOT context. This is an npm workspaces
+# monorepo with one lockfile at the root, so a context of ./server has no
+# package-lock.json and `npm ci` fails immediately.
+# ---------------------------------------------------------------------------
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: classhub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set - copy .env.docker.example to .env}
+      POSTGRES_DB: ${POSTGRES_DB:-classhub}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # The API must not attempt migrations before PostgreSQL answers, or the
+      # very first `up` fails and has to be retried by hand.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-classhub}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    # Deliberately NOT published to the host. Only the app needs the database.
+    expose:
+      - "5432"
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: classhub-server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # Inside the container. Map a different host port below if you need to.
+      PORT: "10000"
+      # `db` is the compose service name, resolved on the internal network.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-classhub}
+      # Read from process.env, not from a .env file inside the image.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is not set}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      # Must be the address a student's browser actually uses, because
+      # reminder emails deep-link to it.
+      CLIENT_URL: ${CLIENT_URL:-http://localhost}
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-10}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_SECURE: ${EMAIL_SECURE:-false}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-ClassHub <no-reply@classhub.edu>}
+      REMINDER_CRON: ${REMINDER_CRON:-*/10 * * * *}
+      REMINDER_LEAD_HOURS: ${REMINDER_LEAD_HOURS:-24}
+      REMINDER_TOLERANCE_MINUTES: ${REMINDER_TOLERANCE_MINUTES:-30}
+      REMINDER_TZ: ${REMINDER_TZ:-UTC}
+    volumes:
+      # Uploaded question/answer files survive `docker compose down` and any
+      # rebuild. A bare named volume is created owned by root, so the
+      # unprivileged `node` user (uid 1000) must be granted write access.
+      - uploads-data:/app/uploads
+    ports:
+      # The app and the API are both on this one port.
+      - "${WEB_PORT:-8080}:10000"
+
+volumes:
+  db-data:
+  uploads-data:

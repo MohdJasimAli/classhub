@@ -1,0 +1,185 @@
+// ---------------------------------------------------------------------------
+// ClassHub - Prisma schema (PostgreSQL)
+//
+// Domain: a teacher publishes revision material. Each Resource is a quiz or an
+// assignment and carries three things students need:
+//   * the QUESTION (text and/or file)
+//   * the ANSWER  (text and/or file)
+//   * a LAST DATE that drives the 24-hour reminder
+//
+// Students read the material. They never take a test, submit work, or get
+// graded - so there are no question banks, submissions or score tables.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------- Enums -------------------------------------
+
+enum Role {
+  ADMIN
+  STUDENT
+}
+
+/** Discriminates the two kinds of published material. */
+enum ResourceType {
+  QUIZ
+  ASSIGNMENT
+}
+
+enum NotificationType {
+  DEADLINE_UPCOMING
+  DEADLINE_REMINDER
+}
+
+/** Mirrors ResourceType so a reminder row is unambiguous. */
+enum ReminderKind {
+  QUIZ
+  ASSIGNMENT
+}
+
+// ------------------------------- Users -------------------------------------
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         Role      @default(STUDENT)
+  // Soft delete: a student is deactivated rather than removed so their history
+  // stays intact and auditable.
+  isActive     Boolean   @default(true)
+  studentCode  String?   @unique
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  resourcesCreated  Resource[]
+  notifications     Notification[]
+  remindersReceived DeadlineReminder[]
+
+  @@index([role, isActive])
+  @@index([name])
+  @@map("users")
+}
+
+// ----------------------------- Resources -----------------------------------
+
+model Resource {
+  id          String       @id @default(cuid())
+  type        ResourceType
+  title       String
+  description String?      @db.Text
+
+  // ---- The question / question paper -----------------------------------
+  questionText   String?   @db.Text
+  questionFileUrl   String?
+  questionFileName String?
+  questionFileSize Int?
+  questionFileMime String?
+
+  // ---- The answer key / model solution ----------------------------------
+  answerText   String?   @db.Text
+  answerFileUrl   String?
+  answerFileName String?
+  answerFileSize Int?
+  answerFileMime String?
+
+  // ---- The last date ---------------------------------------------------
+  // Admin-supplied. Drives both the "due soon" badges and the 24-hour reminder.
+  lastDate    DateTime
+  isPublished Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy     User           @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([lastDate])
+  @@index([type, lastDate])
+  @@index([isPublished, lastDate])
+  @@index([createdById])
+  @@map("resources")
+}
+
+// ---------------------------- Notifications --------------------------------
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  type       NotificationType
+  title      String
+  message    String           @db.Text
+  // Client-side deep link, e.g. /student/resources/<id>
+  link       String?
+  resourceId String?
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource Resource? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// ------------------------- Deadline reminders ------------------------------
+//
+// Reliability table. One row == "this student has already been reminded about
+// this specific item/last date". The unique constraint is the duplicate
+// prevention mechanism, so a crash, a redeploy or overlapping scheduler runs can
+// never produce two reminder emails for the same recipient.
+//
+// `targetId` is a POLYMORPHIC reference to Resource.id rather than a foreign
+// key. That is deliberate: one table and one unique index then cover every item
+// with a single idempotency guarantee, and deleting a resource never has to
+// touch its historical reminder rows.
+model DeadlineReminder {
+  id      String       @id @default(cuid())
+  kind    ReminderKind
+  targetId String
+  // The exact last date the reminder refers to. If the admin moves it, this
+  // value changes and a fresh reminder becomes eligible.
+  reminderFor DateTime
+  userId  String
+  channel String       @default("EMAIL")
+  // Insertion itself is the reservation; this records successful delivery.
+  sentAt  DateTime?
+  error   String?      @db.Text
+  createdAt DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, targetId, userId, reminderFor])
+  @@index([reminderFor, sentAt])
+  @@index([userId])
+  @@map("deadline_reminders")
+}
+
+// ------------------------------ Email log -----------------------------------
+//
+// Operational audit trail. Also acts as the sink when SMTP is not configured
+// locally, so reminder delivery stays verifiable end-to-end.
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  toEmail   String
+  toUserId  String?
+  subject   String
+  template  String
+  status    String   @default("SENT")
+  error     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([toEmail, createdAt])
+  @@index([template, createdAt])
+  @@map("email_logs")
+}

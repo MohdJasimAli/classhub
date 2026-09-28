@@ -1,0 +1,84 @@
+# ---------------------------------------------------------------------------
+# Render blueprint for ClassHub.
+#
+# Render reads this file when you create a service with "Blueprint" selected.
+# It declares one web service (which also serves the web app) and one
+# PostgreSQL database.
+#
+# Why ONE service: the auth cookie is set `sameSite: 'lax'`, so the browser
+# refuses to send it on a cross-site request. Two Render services get two
+# different *.onrender.com domains, which are cross-site - every student would
+# be permanently bounced back to the login page. Serving both from one origin
+# is the only arrangement that works without weakening the cookie to
+# `sameSite: 'none'`.
+#
+# One service also keeps you inside the free tier, which meters instance hours
+# per service.
+#
+# Docs: https://render.com/docs/blueprint-spec
+# ---------------------------------------------------------------------------
+
+databases:
+  - name: classhub-db
+    databaseName: classhub
+    user: classhub
+    # Render generates and stores this for you; it is never in the repo.
+    plan: free
+
+services:
+  - type: web
+    name: classhub
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    # Render injects PORT and expects the service to bind it. The Dockerfile
+    # reads PORT from the environment, so nothing else is needed here.
+    healthCheckPath: /api/health
+    # Any env var set in the Render dashboard overrides these defaults.
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: classhub-db
+          property: connectionString
+      # Set this in the dashboard, not here. Generate one with:
+      #   node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      # Set this to your real Render URL after the first deploy, e.g.
+      # https://classhub.onrender.com. It is used for CORS and, more
+      # importantly, for the links inside reminder emails.
+      - key: CLIENT_URL
+        sync: false
+      # Leave EMAIL_HOST/USER/PASSWORD unset to run in capture mode: emails are
+      # rendered and stored in the database but not delivered. Set them in the
+      # dashboard to send for real.
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        value: 587
+      - key: EMAIL_SECURE
+        value: "false"
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: UPLOAD_DIR
+        value: /app/uploads
+      - key: MAX_FILE_SIZE_MB
+        value: "10"
+      - key: REMINDER_CRON
+        value: "*/10 * * * *"
+      - key: REMINDER_LEAD_HOURS
+        value: "24"
+      - key: REMINDER_TOLERANCE_MINUTES
+        value: "30"
+      - key: REMINDER_TZ
+        value: UTC
