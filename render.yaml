@@ -24,6 +24,8 @@ databases:
     user: classhub
     # Render generates and stores this for you; it is never in the repo.
     plan: free
+    # MUST match the service region below. See the note there.
+    region: oregon
 
 services:
   - type: web
@@ -32,7 +34,24 @@ services:
     dockerfilePath: ./server/Dockerfile
     dockerContext: .
     plan: free
-    region: singapore
+    # MUST match the database's region.
+    #
+    # Render's internal database hostnames (dpg-...-a) resolve ONLY from
+    # services in the same region. A mismatch does not produce a connection
+    # error or a credentials error - the name simply does not resolve, and
+    # Prisma reports:
+    #
+    #   P1001: Can't reach database server at `dpg-...:5432`
+    #
+    # An earlier version of this file pinned the service to `singapore` and
+    # left the database on the default region, which is exactly that failure.
+    #
+    # Oregon is used for both because Render's free PostgreSQL is reliably
+    # offered there. A region closer to India (mumbai or singapore) would cut
+    # latency, but verify on <https://render.com/docs/regions> that a free
+    # database is available there before choosing it, and change BOTH lines
+    # together.
+    region: oregon
     # Render injects PORT and expects the service to bind it. The Dockerfile
     # reads PORT from the environment, so nothing else is needed here.
     healthCheckPath: /api/health
