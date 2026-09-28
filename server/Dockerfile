@@ -70,12 +70,29 @@ COPY server/src ./server/src
 COPY prisma ./prisma
 
 WORKDIR /app/server
+
+# ORDER MATTERS: the Prisma Client must be generated BEFORE the TypeScript
+# compile.
+#
+# `npm ci` installs @prisma/client but does not generate it - generation writes
+# the real types into node_modules/.prisma/client, and until that exists the
+# package exports a stub with no members. Compiling first produces dozens of
+# errors that all trace back to this one omission:
+#
+#   error TS2305: Module '"@prisma/client"' has no exported member 'ResourceType'
+#   error TS2694: Namespace 'Prisma' has no exported member 'ResourceWhereInput'
+#   ... followed by a cascade of TS7006 implicit-any errors, because every
+#   parameter typed from a Prisma model collapses to `any`.
+#
+# This is invisible on a developer machine, where node_modules usually already
+# contains a generated client from an earlier `prisma generate`. A clean build -
+# a container, or CI - is the only place it shows up.
+RUN npx prisma generate --schema=/app/prisma/schema.prisma
+
 RUN npm run build
 
-# Prisma Client is generated here, where the `prisma` devDependency exists,
-# then copied into the runtime stage. Generating it in the runner would mean
-# shipping the whole TypeScript toolchain.
-RUN npx prisma generate --schema=/app/prisma/schema.prisma
+# The generated client above is what the runtime stage copies in. Generating it
+# in the runner instead would mean shipping the whole TypeScript toolchain.
 
 # ---- Stage 4: production dependencies --------------------------------------
 FROM node:22-alpine AS prod-deps
